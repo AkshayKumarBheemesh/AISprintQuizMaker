@@ -1,0 +1,32 @@
+-- HUMAN-ONLY bookkeeping. Do not run from an agent unless the user explicitly
+-- asks to write these two rows to production d1_migrations.
+--
+-- Purpose: tell Wrangler that local files
+--   0001_create_users_and_sessions.sql
+--   0002_align_remote_sessions.sql
+-- are already reflected on production, so a future
+--   wrangler d1 migrations apply --remote
+-- is a no-op instead of attempting CREATE TABLE users.
+--
+-- This script does NOT:
+--   - create or drop users / sessions
+--   - alter columns or indexes
+--   - delete application data
+--   - change authentication behavior
+--
+-- Preconditions (already true as of 2026-09-01):
+--   - Remote users has no username column
+--   - Remote sessions exists with idx_sessions_user_id and idx_sessions_expires_at
+--   - Remote d1_migrations currently has only 0001_create_users_table.sql
+--   - wrangler d1 migrations list --remote currently lists local 0001 and 0002
+--     as "Migrations to be applied" — that apply is UNSAFE until these rows exist
+--
+-- After a human applies this remotely (wrangler d1 execute --remote --file ...),
+-- verify with:
+--   SELECT id, name, applied_at FROM d1_migrations ORDER BY id;
+-- and
+--   wrangler d1 migrations list aisprintquiz-db --remote
+-- which should report no migrations to apply.
+
+INSERT INTO d1_migrations (name) VALUES ('0001_create_users_and_sessions.sql');
+INSERT INTO d1_migrations (name) VALUES ('0002_align_remote_sessions.sql');
