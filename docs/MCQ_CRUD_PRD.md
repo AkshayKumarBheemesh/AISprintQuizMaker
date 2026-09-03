@@ -897,7 +897,7 @@ implementation. Each phase is TDD: tests first.
 | Lint | `npm run lint` | **exit 0** |
 | Types | `npx tsc --noEmit` | **exit 0** |
 
-### Phase 4: Pages and dashboard replacement - PLANNED
+### Phase 4: Pages and dashboard replacement - COMPLETED
 
 **Objective:** Wired routes under `(protected)`.
 
@@ -909,6 +909,18 @@ implementation. Each phase is TDD: tests first.
 4. Observe GREEN. Full-suite regression.
 
 **Deliverables:** four routes working against the actions and service.
+
+#### Phase 4 Evidence — recorded 2026-09-03
+
+| Step | Command | Observed result |
+|---|---|---|
+| Page RED | `npx vitest run src/app/(protected)/dashboard` | Failures: missing `./page` modules for new/edit/preview; dashboard still rendered the Sprint 1 stub |
+| Page GREEN | same | **11 passed (11)**, 4 files |
+| Regression | `npm test` | **252 passed (252)**, 29 files |
+| Lint | `npm run lint` | **exit 0** |
+| Types | `npx tsc --noEmit` | **exit 0** |
+
+No Playwright MCQ specs were added. No `npm run deploy`. No remote D1 apply.
 
 ### Phase 5: Verification - PLANNED
 
@@ -1302,9 +1314,10 @@ Filled in during implementation when a defect is found and fixed.
 ## Current Status
 
 **Last Updated:** 2026-09-03  
-**Current Phase:** Phase 3 — UI components  
+**Current Phase:** Phase 4 — Next.js routes/pages  
 **Status:** COMPLETED  
-**Next Steps:** Wait for explicit approval before Phase 4 (routes/pages).
+**Next Steps:** Wait for explicit approval before Phase 5 (Playwright/E2E).
 
-Phase 3 is done. No Next.js MCQ pages, no Playwright MCQ specs, no remote
-migration, no deploy.
+Phase 4 is done. `/dashboard` now lists the signed-in teacher’s MCQs. Create,
+edit, and preview pages are wired to Phase 2 actions and Phase 3 components.
+No Playwright MCQ specs, no remote migration, no deploy.
