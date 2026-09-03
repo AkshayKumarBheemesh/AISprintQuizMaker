@@ -1,0 +1,38 @@
+---
+description: Mandatory sprint phase approval, testing, and git workflow
+alwaysApply: true
+---
+
+# Sprint phase workflow
+
+Work in explicit phases. After each phase: STOP, summarize, and wait for the user to approve. Do not start the next phase automatically.
+
+## After approval
+
+1. Commit only that phase’s files plus required rule/doc updates. Review `git status` and the diff first.
+2. Push to the **current** feature branch. Do not create or switch branches unless asked.
+3. Report the commit hash and branch name, then STOP again.
+
+## Commits
+
+- Message must name the sprint and phase (example: `Sprint 2: complete phases 1-3`).
+- Exclude secrets, `.env`, `.next`, `.wrangler`, local D1 state, and unrelated files.
+- Include `package-lock.json` only if the approved work changed it. Never edit generated lockfiles just to commit them.
+- Verify the commit, then `git push` to the current branch and verify the push.
+
+## Deploy and remote D1
+
+Never run `npm run deploy` or apply remote D1 migrations unless the user explicitly asks.
+
+## Testing
+
+Before calling a phase complete: run that phase’s tests, plus `npm test`, `npm run lint`, and `npx tsc --noEmit` when appropriate. Report exact results. Do not claim complete if required tests fail.
+
+## Sprint 2 sequence (do not reorder unless asked)
+
+1. Schema + Service
+2. Server Actions
+3. UI Components
+4. Next.js Routes/Pages
+5. Playwright / E2E
+6. Final review / release readiness
