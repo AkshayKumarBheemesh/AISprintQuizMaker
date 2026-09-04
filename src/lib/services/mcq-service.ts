@@ -1,5 +1,5 @@
 import { nowSeconds } from "@/lib/auth/time";
-import { execute, queryAll, queryOne } from "@/lib/d1-client";
+import { batch, execute, queryAll, queryOne, type BatchStatement } from "@/lib/d1-client";
 import { mcqWriteSchema, type McqWriteFields } from "@/lib/schemas/mcq-schema";
 
 export type McqWriteInput = McqWriteFields;
@@ -136,10 +136,16 @@ export async function updateMcq(
 	const currentIds = new Set(currentChoices.map((choice) => choice.id));
 	const now = nowSeconds();
 
-	await execute(
-		"UPDATE mcqs SET name = ?1, question = ?2, updated_at = ?3 WHERE id = ?4 AND created_by_user_id = ?5",
-		[parsed.data.name, parsed.data.question, now, id, userId],
-	);
+	const statements: BatchStatement[] = [
+		{
+			sql: "UPDATE mcqs SET name = ?1, question = ?2, updated_at = ?3 WHERE id = ?4 AND created_by_user_id = ?5",
+			params: [parsed.data.name, parsed.data.question, now, id, userId],
+		},
+		{
+			sql: "UPDATE mcq_choices SET is_correct = 0 WHERE mcq_id = ?1",
+			params: [id],
+		},
+	];
 
 	const keptIds = new Set<string>();
 	const choices: McqChoice[] = [];
@@ -148,10 +154,10 @@ export async function updateMcq(
 		if (choice.id && currentIds.has(choice.id)) {
 			keptIds.add(choice.id);
 			const previous = currentChoices.find((row) => row.id === choice.id);
-			await execute(
-				"UPDATE mcq_choices SET choice_text = ?1, is_correct = ?2, position = ?3, updated_at = ?4 WHERE id = ?5 AND mcq_id = ?6",
-				[choice.choiceText, choice.isCorrect ? 1 : 0, position, now, choice.id, id],
-			);
+			statements.push({
+				sql: "UPDATE mcq_choices SET choice_text = ?1, is_correct = ?2, position = ?3, updated_at = ?4 WHERE id = ?5 AND mcq_id = ?6",
+				params: [choice.choiceText, choice.isCorrect ? 1 : 0, position, now, choice.id, id],
+			});
 			choices.push(
 				toWritableChoice(id, choice, position, previous?.created_at ?? now, now, choice.id),
 			);
@@ -159,7 +165,18 @@ export async function updateMcq(
 		}
 
 		const created = toWritableChoice(id, choice, position, now, now);
-		await insertChoice(created);
+		statements.push({
+			sql: "INSERT INTO mcq_choices (id, mcq_id, choice_text, is_correct, position, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+			params: [
+				created.id,
+				created.mcqId,
+				created.choiceText,
+				created.isCorrect ? 1 : 0,
+				created.position,
+				created.createdAt,
+				created.updatedAt,
+			],
+		});
 		choices.push(created);
 	}
 
@@ -168,9 +185,17 @@ export async function updateMcq(
 			continue;
 		}
 
-		await execute("DELETE FROM mcq_attempts WHERE choice_id = ?1", [current.id]);
-		await execute("DELETE FROM mcq_choices WHERE id = ?1 AND mcq_id = ?2", [current.id, id]);
+		statements.push({
+			sql: "DELETE FROM mcq_attempts WHERE choice_id = ?1",
+			params: [current.id],
+		});
+		statements.push({
+			sql: "DELETE FROM mcq_choices WHERE id = ?1 AND mcq_id = ?2",
+			params: [current.id, id],
+		});
 	}
+
+	await batch(statements);
 
 	return {
 		ok: true,

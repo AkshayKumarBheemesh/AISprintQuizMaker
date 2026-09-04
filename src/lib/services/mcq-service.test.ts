@@ -4,9 +4,10 @@ vi.mock("@/lib/d1-client", () => ({
 	queryAll: vi.fn(),
 	queryOne: vi.fn(),
 	execute: vi.fn(),
+	batch: vi.fn(),
 }));
 
-import { execute, queryAll, queryOne } from "@/lib/d1-client";
+import { batch, execute, queryAll, queryOne } from "@/lib/d1-client";
 
 import {
 	createMcq,
@@ -20,6 +21,7 @@ import {
 const mockQueryAll = vi.mocked(queryAll);
 const mockQueryOne = vi.mocked(queryOne);
 const mockExecute = vi.mocked(execute);
+const mockBatch = vi.mocked(batch);
 
 const USER_ID = "user-1";
 const OTHER_USER_ID = "user-2";
@@ -71,6 +73,7 @@ function choiceRow(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockExecute.mockResolvedValue(undefined);
+	mockBatch.mockResolvedValue(undefined);
 	mockQueryAll.mockResolvedValue([]);
 	mockQueryOne.mockResolvedValue(null);
 });
@@ -253,6 +256,7 @@ describe("updateMcq", () => {
 
 		expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
 		expect(mockExecute).not.toHaveBeenCalled();
+		expect(mockBatch).not.toHaveBeenCalled();
 	});
 
 	it("updates name and question and preserves existing choice IDs", async () => {
@@ -276,21 +280,89 @@ describe("updateMcq", () => {
 		if (!result.ok) return;
 		expect(result.mcq.choices.map((choice) => choice.id)).toEqual(["choice-1", "choice-2"]);
 
-		const updateMcqCall = mockExecute.mock.calls.find(([sql]) =>
-			sql.includes("UPDATE mcqs"),
-		);
-		expect(updateMcqCall?.[0]).toContain("?1");
-		expect(updateMcqCall?.[1]).toEqual(
+		const statements = mockBatch.mock.calls[0]?.[0] ?? [];
+		const updateMcqCall = statements.find((statement) => statement.sql.includes("UPDATE mcqs"));
+		expect(updateMcqCall?.sql).toContain("?1");
+		expect(updateMcqCall?.params).toEqual(
 			expect.arrayContaining(["European capitals", "Which city is the capital of France?"]),
 		);
 
-		const choiceUpdates = mockExecute.mock.calls.filter(([sql]) =>
-			sql.includes("UPDATE mcq_choices"),
+		const choiceUpdates = statements.filter(
+			(statement) =>
+				statement.sql.includes("UPDATE mcq_choices") &&
+				statement.sql.includes("choice_text"),
 		);
 		expect(choiceUpdates).toHaveLength(2);
-		expect(choiceUpdates[0]?.[1]).toContain("choice-1");
-		expect(choiceUpdates[1]?.[1]).toContain("choice-2");
-		expect(choiceUpdates.flatMap(([, params]) => params ?? [])).not.toContain("choice-3");
+		expect(choiceUpdates[0]?.params).toContain("choice-1");
+		expect(choiceUpdates[1]?.params).toContain("choice-2");
+		expect(statements.flatMap((statement) => statement.params ?? [])).not.toContain("choice-3");
+	});
+
+	it("clears every is_correct flag in the same batch before setting the new correct choice", async () => {
+		mockQueryOne.mockResolvedValue(mcqRow());
+		mockQueryAll.mockResolvedValue([
+			choiceRow({ id: "choice-1", choice_text: "NEW DELHI", is_correct: 0, position: 0 }),
+			choiceRow({ id: "choice-2", choice_text: "MUMBAI", is_correct: 0, position: 1 }),
+			choiceRow({ id: "choice-3", choice_text: "PUNE", is_correct: 1, position: 2 }),
+		]);
+
+		const result = await updateMcq(
+			MCQ_ID,
+			USER_ID,
+			validWriteInput({
+				choices: [
+					{ id: "choice-1", choiceText: "NEW DELHI", isCorrect: false },
+					{ id: "choice-2", choiceText: "MUMBAI", isCorrect: true },
+					{ id: "choice-3", choiceText: "PUNE", isCorrect: false },
+				],
+			}),
+		);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.mcq.choices.map((choice) => choice.isCorrect)).toEqual([false, true, false]);
+
+		expect(mockBatch).toHaveBeenCalledTimes(1);
+		const statements = mockBatch.mock.calls[0]?.[0] ?? [];
+		const sqlOrder = statements.map((statement) => statement.sql);
+
+		const clearIndex = sqlOrder.findIndex(
+			(sql) => sql.includes("UPDATE mcq_choices SET is_correct = 0") && sql.includes("mcq_id"),
+		);
+		const setCorrectIndex = statements.findIndex(
+			(statement) =>
+				statement.sql.includes("UPDATE mcq_choices") &&
+				statement.sql.includes("choice_text") &&
+				statement.params?.[1] === 1,
+		);
+
+		expect(clearIndex).toBeGreaterThanOrEqual(0);
+		expect(setCorrectIndex).toBeGreaterThan(clearIndex);
+		expect(statements[clearIndex]?.params).toEqual([MCQ_ID]);
+		expect(statements.some((statement) => statement.sql.includes("UPDATE mcq_attempts"))).toBe(
+			false,
+		);
+	});
+
+	it("can move the correct choice from the first row to a later row", async () => {
+		mockQueryOne.mockResolvedValue(mcqRow());
+		mockQueryAll.mockResolvedValue(existingChoices());
+
+		const result = await updateMcq(
+			MCQ_ID,
+			USER_ID,
+			validWriteInput({
+				choices: [
+					{ id: "choice-1", choiceText: "Paris", isCorrect: false },
+					{ id: "choice-2", choiceText: "Lyon", isCorrect: true },
+				],
+			}),
+		);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.mcq.choices.map((choice) => choice.isCorrect)).toEqual([false, true]);
+		expect(mockBatch).toHaveBeenCalledTimes(1);
 	});
 
 	it("inserts added choices and deletes removed choices plus their attempts", async () => {
@@ -314,7 +386,8 @@ describe("updateMcq", () => {
 		expect(result.mcq.choices[0]?.id).toBe("choice-1");
 		expect(result.mcq.choices[1]?.id).not.toBe("choice-2");
 
-		const sqlOrder = mockExecute.mock.calls.map(([sql]) => sql);
+		const statements = mockBatch.mock.calls[0]?.[0] ?? [];
+		const sqlOrder = statements.map((statement) => statement.sql);
 		const deleteAttemptsIndex = sqlOrder.findIndex(
 			(sql) => sql.includes("DELETE FROM mcq_attempts") && sql.includes("choice_id"),
 		);
@@ -329,7 +402,7 @@ describe("updateMcq", () => {
 		expect(deleteChoiceIndex).toBeGreaterThan(deleteAttemptsIndex);
 		expect(insertChoiceIndex).toBeGreaterThanOrEqual(0);
 
-		const deletedChoiceParams = mockExecute.mock.calls[deleteChoiceIndex]?.[1] ?? [];
+		const deletedChoiceParams = statements[deleteChoiceIndex]?.params ?? [];
 		expect(deletedChoiceParams).toContain("choice-2");
 		expect(sqlOrder.some((sql) => sql.includes("UPDATE mcq_attempts"))).toBe(false);
 	});

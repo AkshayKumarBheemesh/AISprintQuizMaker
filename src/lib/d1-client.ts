@@ -33,3 +33,29 @@ export async function execute(sql: string, params: QueryParam[] = []): Promise<v
 	const bound = params.length > 0 ? statement.bind(...params) : statement;
 	await bound.run();
 }
+
+export type BatchStatement = {
+	sql: string;
+	params?: QueryParam[];
+};
+
+/**
+ * Runs the statements in one D1 batch (a single transaction). Used when a
+ * sequence of writes must not be visible half-applied — for example clearing
+ * `is_correct` before setting the new correct choice.
+ */
+export async function batch(statements: BatchStatement[]): Promise<void> {
+	if (statements.length === 0) {
+		return;
+	}
+
+	const db = getDb();
+	await db.batch(
+		statements.map((statement) => {
+			const prepared = db.prepare(statement.sql);
+			return statement.params && statement.params.length > 0
+				? prepared.bind(...statement.params)
+				: prepared;
+		}),
+	);
+}
