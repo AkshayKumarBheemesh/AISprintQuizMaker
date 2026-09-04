@@ -122,6 +122,26 @@ describe("McqForm", () => {
 		expect(mockCreate).not.toHaveBeenCalled();
 	});
 
+	it("submits a new MCQ without requiring choice ids", async () => {
+		const user = userEvent.setup();
+		render(<McqForm mode="create" />);
+
+		await user.type(screen.getByLabelText("Name"), "Capitals");
+		await user.type(screen.getByLabelText("Question"), "What is the capital of France?");
+		await user.type(screen.getByLabelText("Choice 1"), "Paris");
+		await user.type(screen.getByLabelText("Choice 2"), "Lyon");
+		await user.click(screen.getByRole("radio", { name: /choice 1 is correct/i }));
+		await user.click(screen.getByRole("button", { name: /save/i }));
+
+		await vi.waitFor(() => expect(mockCreate).toHaveBeenCalled());
+		const data = mockCreate.mock.calls[0]?.[1] as FormData;
+		expect(data.get("name")).toBe("Capitals");
+		expect(data.get("choices.0.choiceText")).toBe("Paris");
+		expect(data.get("choices.0.isCorrect")).toBe("true");
+		expect(data.get("choices.0.id")).toBeNull();
+		expect(mockUpdate).not.toHaveBeenCalled();
+	});
+
 	it("does not submit when Cancel is used", async () => {
 		const user = userEvent.setup();
 		render(<McqForm mode="create" />);

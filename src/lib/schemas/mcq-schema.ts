@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 const choiceSchema = z.object({
-	id: z.string().trim().min(1).optional(),
+	id: z
+		.string()
+		.trim()
+		.optional()
+		.transform((value) => (value ? value : undefined)),
 	choiceText: z
 		.string()
 		.trim()
@@ -32,5 +36,5 @@ export const mcqWriteSchema = z
 		path: ["choices"],
 	});
 
-export type McqWriteFields = z.infer<typeof mcqWriteSchema>;
-export type McqChoiceFields = z.infer<typeof choiceSchema>;
+export type McqWriteFields = z.input<typeof mcqWriteSchema>;
+export type McqChoiceFields = z.input<typeof choiceSchema>;

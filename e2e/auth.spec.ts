@@ -63,8 +63,6 @@ test.describe("Sprint 1 authentication E2E", () => {
 		await expect(page.getByRole("heading", { name: "MCQ Home" })).toBeVisible();
 		await expect(page.getByText(`${user.firstName} ${user.lastName}`)).toBeVisible();
 		await expect(page.getByRole("button", { name: /log out/i })).toBeVisible();
-		await expect(page.getByText(/quiz features arrive in a later sprint/i)).toBeVisible();
-		await expect(page.getByRole("link", { name: /quiz|create question/i })).toHaveCount(0);
 
 		const body = await page.locator("body").innerText();
 		expect(body).not.toContain(user.password);

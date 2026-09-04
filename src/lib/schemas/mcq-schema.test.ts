@@ -272,4 +272,20 @@ describe("mcqWriteSchema", () => {
 		if (!result.success) return;
 		expect(result.data.choices[0]?.id).toBeUndefined();
 	});
+
+	it("treats a blank choice id as omitted so the create form can submit", () => {
+		const result = mcqWriteSchema.safeParse(
+			validInput({
+				choices: [
+					choice({ id: "", choiceText: "Paris", isCorrect: true }),
+					choice({ id: "   ", choiceText: "Lyon" }),
+				],
+			}),
+		);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.choices[0]?.id).toBeUndefined();
+		expect(result.data.choices[1]?.id).toBeUndefined();
+	});
 });

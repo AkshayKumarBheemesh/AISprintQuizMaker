@@ -10,6 +10,7 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"e2e": "playwright test",
+		"e2e:mcq": "playwright test --config playwright.mcq.config.ts",
 		"deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
 		"upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",

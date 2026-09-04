@@ -815,6 +815,10 @@ Default Vitest environment remains Node. Component files use
 
 - Existing Sprint 1 Vitest files stay green.
 - Auth E2E is not rewritten as part of Sprint 2 unless a Sprint 2 change breaks it.
+- Phase 5 removed only the obsolete Sprint 1 dashboard stub assertions from `e2e/auth.spec.ts`
+  (“later sprint” / no create link). Authentication assertions and the production
+  `workers.dev` URL contract were left in place. MCQ E2E uses `playwright.mcq.config.ts`
+  and `npm run e2e:mcq` against local preview + local D1 only.
 
 ---
 
@@ -922,7 +926,7 @@ implementation. Each phase is TDD: tests first.
 
 No Playwright MCQ specs were added. No `npm run deploy`. No remote D1 apply.
 
-### Phase 5: Verification - PLANNED
+### Phase 5: Verification - COMPLETED
 
 **Objective:** Proof, not inspection.
 
@@ -935,6 +939,26 @@ No Playwright MCQ specs were added. No `npm run deploy`. No remote D1 apply.
 5. Record results in this PRD
 
 Do not deploy. Do not apply `0003` remotely.
+
+#### Phase 5 Evidence — recorded 2026-09-04
+
+MCQ Playwright runs **only** via `npm run e2e:mcq` → `playwright.mcq.config.ts`.
+Default `baseURL` is `http://127.0.0.1:8787`. The config **throws** if
+`PLAYWRIGHT_BASE_URL` contains `workers.dev`. Wrangler preview log:
+`env.DB (aisprintquiz-db) D1 Database local`.
+
+| Step | Command | Observed result |
+|---|---|---|
+| MCQ E2E RED | `npm run e2e:mcq` against local preview | Unauth route **passed**. Author/ownership **failed**: Save never POSTed — hidden empty choice `id` failed Zod `min(1)` with no visible error |
+| Schema/form fix | blank `id` → `undefined`; create-form submit test added | Schema + form tests **30 passed** |
+| MCQ E2E GREEN | `npm run e2e:mcq` | **3 passed (19.2s)** against `http://127.0.0.1:8787` + local D1 |
+| Regression | `npm test` | **254 passed (254)**, 29 files |
+| Lint | `npm run lint` | **exit 0** |
+| Types | `npx tsc --noEmit` | **exit 0** |
+| Build | `npm run build` | **exit 0** — routes include `/dashboard`, `/dashboard/mcqs/new`, `[id]/edit`, `[id]/preview` |
+
+`npm run e2e` (production auth default) was **not** run. `npm run deploy` was **not** run.
+`0003` was **not** applied remotely. Phase 6 was **not** started.
 
 ---
 
@@ -970,6 +994,9 @@ Do not deploy. Do not apply `0003` remotely.
 | `src/components/ui/dropdown-menu.tsx` | Generated |
 | `src/components/ui/textarea.tsx` | Generated |
 | `src/components/ui/radio-group.tsx` | Generated |
+| `playwright.mcq.config.ts` | Local-only MCQ Playwright config |
+| `e2e/mcq.spec.ts` | MCQ browser journeys |
+| `e2e/helpers/local-auth.ts` | Local register helper (no workers.dev) |
 
 Exact component filenames may split or join if tests stay colocated and the public
 behavior above is preserved. Do not invent a second feature folder outside
@@ -981,6 +1008,8 @@ behavior above is preserved. Do not invent a second feature folder outside
 |---|---|
 | `src/app/(protected)/dashboard/page.tsx` | Stub → list |
 | `src/app/(protected)/dashboard/page.test.tsx` | Authoring assertions |
+| `e2e/auth.spec.ts` | Remove obsolete stub-content assertions only |
+| `package.json` | Add `e2e:mcq` script |
 | `AGENTS.md` | Optional: replace the “unmodified starter” paragraph after implementation |
 
 #### Do not modify (unless a proven Sprint 2 defect requires it)
@@ -1050,58 +1079,61 @@ identical to `register-form.tsx`.
 
 ### List
 
-- [ ] Signed-in `/dashboard` shows a table of the current teacher’s MCQs
-- [ ] Each row shows name, question, and a three-dot actions menu
-- [ ] Create navigates to `/dashboard/mcqs/new`
-- [ ] Another teacher’s MCQs never appear
+- [x] Signed-in `/dashboard` shows a table of the current teacher’s MCQs
+- [x] Each row shows name, question, and a three-dot actions menu
+- [x] Create navigates to `/dashboard/mcqs/new`
+- [x] Another teacher’s MCQs never appear
 
 ### Create / edit
 
-- [ ] New form shows two choices
-- [ ] Choices can be added up to six and not beyond
-- [ ] Choices can be removed down to two and not below
-- [ ] Exactly one correct choice is required
-- [ ] Name and question are required
-- [ ] Each choice has required text
-- [ ] Client and server both enforce the rules above
-- [ ] Save create persists and returns to `/dashboard`
-- [ ] Save edit persists changes and returns to `/dashboard`
-- [ ] Cancel returns to `/dashboard` without persisting
-- [ ] Edit loads existing values
-- [ ] `created_by_user_id` is the session user, not a form field
+- [x] New form shows two choices
+- [x] Choices can be added up to six and not beyond
+- [x] Choices can be removed down to two and not below
+- [x] Exactly one correct choice is required
+- [x] Name and question are required
+- [x] Each choice has required text
+- [x] Client and server both enforce the rules above
+- [x] Save create persists and returns to `/dashboard`
+- [x] Save edit persists changes and returns to `/dashboard`
+- [x] Cancel returns to `/dashboard` without persisting
+- [x] Edit loads existing values
+- [x] `created_by_user_id` is the session user, not a form field
 
 ### Preview / attempt
 
-- [ ] Preview is not the edit form
-- [ ] Preview shows name, question, and choices
-- [ ] Selecting a choice and submitting records an attempt
-- [ ] Stored `is_correct` matches the stored choice, not the client
-- [ ] Stored `user_id` is the session user
-- [ ] A foreign or unknown MCQ does not preview another teacher’s item
+- [x] Preview is not the edit form
+- [x] Preview shows name, question, and choices
+- [x] Selecting a choice and submitting records an attempt
+- [x] Stored `is_correct` matches the stored choice, not the client
+- [x] Stored `user_id` is the session user
+- [x] A foreign or unknown MCQ does not preview another teacher’s item
 
 ### Delete
 
-- [ ] Delete is in the three-dot menu
-- [ ] Confirmation is required
-- [ ] Dismissing the dialog does not delete
-- [ ] Confirmed delete removes the MCQ, choices, and attempts
-- [ ] Delete of a foreign id does not remove that row
+- [x] Delete is in the three-dot menu
+- [x] Confirmation is required
+- [x] Dismissing the dialog does not delete
+- [x] Confirmed delete removes the MCQ, choices, and attempts
+- [x] Delete of a foreign id does not remove that row
+
+Foreign-id delete is covered by service/action tests. E2E proved a second teacher cannot
+open edit/preview and does not see the owner’s row.
 
 ### Auth / security
 
-- [ ] Unauthenticated list/new/edit/preview follow Sprint 1 protection
-- [ ] Unauthenticated actions do not write
-- [ ] Sprint 1 login / logout / session behavior still passes its existing tests
-- [ ] All writes use prepared statements with positional placeholders
+- [x] Unauthenticated list/new/edit/preview follow Sprint 1 protection
+- [x] Unauthenticated actions do not write
+- [x] Sprint 1 login / logout / session behavior still passes its existing tests
+- [x] All writes use prepared statements with positional placeholders
 
 ### Quality
 
-- [ ] Schema, service, action, and component tests listed above pass
-- [ ] `npm test` green
-- [ ] `npm run lint` clean
-- [ ] `npm run build` succeeds
-- [ ] Browser verification of the main journey is recorded
-- [ ] RED/GREEN evidence recorded per phase
+- [x] Schema, service, action, and component tests listed above pass
+- [x] `npm test` green
+- [x] `npm run lint` clean
+- [x] `npm run build` succeeds
+- [x] Browser verification of the main journey is recorded
+- [x] RED/GREEN evidence recorded per phase
 
 ---
 
@@ -1133,13 +1165,13 @@ No metric is PASS until measured.
 
 | Metric | Target | How measured | Status |
 |---|---|---|---|
-| Create success | Valid form creates one MCQ and 2–6 choices | Service tests + browser create | NOT MEASURED |
-| Ownership isolation | 0 foreign rows in list/get/update/delete/attempt | Service + action tests | NOT MEASURED |
-| Validation | 100% of invalid shapes rejected client-side and in the action | Schema + action + form tests | NOT MEASURED |
-| Delete completeness | 0 leftover choices or attempts for a deleted MCQ | Service tests asserting delete SQL / sequence | NOT MEASURED |
-| Attempt correctness | Stored flag matches stored choice | Service tests S-8/S-9 | NOT MEASURED |
-| Sprint 1 regression | Existing auth tests remain 100% pass | `npm test` | NOT MEASURED |
-| Lint / build | exit 0 | `npm run lint`, `npm run build` | NOT MEASURED |
+| Create success | Valid form creates one MCQ and 2–6 choices | Service tests + browser create | **PASS** — E2E create + Vitest, 2026-09-04 |
+| Ownership isolation | 0 foreign rows in list/get/update/delete/attempt | Service + action tests | **PASS** — service/action + second-teacher E2E |
+| Validation | 100% of invalid shapes rejected client-side and in the action | Schema + action + form tests | **PASS** — schema/action/form suites |
+| Delete completeness | 0 leftover choices or attempts for a deleted MCQ | Service tests asserting delete SQL / sequence | **PASS** — service tests (E2E confirms row gone) |
+| Attempt correctness | Stored flag matches stored choice | Service tests S-8/S-9 | **PASS** — service + E2E incorrect then correct |
+| Sprint 1 regression | Existing auth tests remain 100% pass | `npm test` | **PASS** — 254/254 Vitest |
+| Lint / build | exit 0 | `npm run lint`, `npm run build` | **PASS** — both exit 0 |
 
 ---
 
@@ -1286,12 +1318,19 @@ None. See RESOLVED-13 through RESOLVED-17.
 
 Filled in during implementation when a defect is found and fixed.
 
-### (none yet)
+### Create Save never left `/dashboard/mcqs/new`
 
-**Problem:**  
-**Cause:**  
-**Solution:**  
-**Code Reference:**
+**Problem:** Playwright create/save hung on `waitForURL("/dashboard")`. Wrangler showed no POST.
+
+**Cause:** The form always registers hidden `choices.N.id` inputs. On create those values are
+`""`. `mcqWriteSchema` treated `id` as `z.string().trim().min(1).optional()`, so an empty
+string failed client Zod and `handleSubmit` never called the Server Action. The id error
+was not rendered.
+
+**Solution:** Treat blank/whitespace choice ids as omitted (`transform` to `undefined`).
+`McqWriteFields` is `z.input` so service call sites keep `id?`.
+
+**Code Reference:** `src/lib/schemas/mcq-schema.ts:4`
 
 ---
 
@@ -1313,11 +1352,11 @@ Filled in during implementation when a defect is found and fixed.
 
 ## Current Status
 
-**Last Updated:** 2026-09-03  
-**Current Phase:** Phase 4 — Next.js routes/pages  
+**Last Updated:** 2026-09-04
+**Current Phase:** Phase 5 — Playwright / E2E
 **Status:** COMPLETED  
-**Next Steps:** Wait for explicit approval before Phase 5 (Playwright/E2E).
+**Next Steps:** Wait for explicit approval before Phase 6 (final review).
 
-Phase 4 is done. `/dashboard` now lists the signed-in teacher’s MCQs. Create,
-edit, and preview pages are wired to Phase 2 actions and Phase 3 components.
-No Playwright MCQ specs, no remote migration, no deploy.
+Phase 5 is done. MCQ E2E runs against local preview + local D1 only
+(`npm run e2e:mcq`). Production `workers.dev` was not used for MCQ tests.
+No remote migration, no deploy. Phase 6 has not started.
