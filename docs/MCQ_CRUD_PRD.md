@@ -957,8 +957,57 @@ Default `baseURL` is `http://127.0.0.1:8787`. The config **throws** if
 | Types | `npx tsc --noEmit` | **exit 0** |
 | Build | `npm run build` | **exit 0** — routes include `/dashboard`, `/dashboard/mcqs/new`, `[id]/edit`, `[id]/preview` |
 
-`npm run e2e` (production auth default) was **not** run. `npm run deploy` was **not** run.
-`0003` was **not** applied remotely. Phase 6 was **not** started.
+`npm run e2e` (production auth default) was **not** run during Phase 5. `npm run deploy` was
+**not** run in Phase 5. Phase 6 applied 0003 as targeted remote DDL, then deployed.
+
+### Phase 6: Production release - COMPLETED
+
+**Objective:** Deploy Sprint 2 MCQ to the existing Worker after a safe remote D1 repair.
+
+**Tasks:**
+
+1. Inspect remote D1. Do not blindly `migrations apply --remote`.
+2. Apply only 0003 SQL via targeted `d1 execute --remote --file`.
+3. Deploy with `npm run deploy`.
+4. Smoke-test auth + MCQ on workers.dev.
+5. Record evidence here.
+
+#### Phase 6 Evidence — recorded 2026-09-04
+
+**Remote D1 repair (approved targeted DDL, not the migration runner):**
+
+| Step | Command | Observed result |
+|---|---|---|
+| History | `wrangler d1 migrations list aisprintquiz-db --remote` | Pending: local `0001`, `0002`, `0003` |
+| Bookkeeping | `SELECT` from `d1_migrations` | Only `0001_create_users_table.sql` (2026-08-27) |
+| Before | `sqlite_master` | `users` + `sessions` only; no MCQ objects |
+| Apply | `wrangler d1 execute aisprintquiz-db --remote --file migrations/0003_create_mcqs_choices_attempts.sql` | **8 queries**, success. Bookmark `00000020-00000006-000050dc-f76985816b89bfe98afd7017f84a18b4` |
+| After | `sqlite_master` | `mcqs`, `mcq_choices`, `mcq_attempts` + all 0003 indexes/FKs/CHECKs |
+| Auth tables | `users` / `sessions` SQL | Unchanged |
+| `d1_migrations` | after execute | Unchanged — no bookkeeping insert |
+| Not run | `wrangler d1 migrations apply --remote` | **not executed** |
+
+**Deploy:**
+
+| Step | Result |
+|---|---|
+| `npm run deploy` | **exit 0** |
+| URL | `https://aisprint-quizmaker.akshaykumar.workers.dev` |
+| Version ID | `e1850fbd-069c-4f15-83dd-dee6ad70314e` |
+| Binding | `env.DB (aisprintquiz-db)` D1 |
+
+**Production smoke (workers.dev only; `npm run e2e:mcq` was not used):**
+
+| Step | Result |
+|---|---|
+| `GET /dashboard` (no cookie) | **307** `Location: /login` |
+| `GET /login` | **200**, Sign in |
+| `npx playwright test e2e/auth.spec.ts e2e/prod-smoke.spec.ts` | **10 passed (1.1m)** |
+| Auth E-1..E-9 | register, logout, login, generic error, duplicate email, unauth redirect, session bounce, forged cookie, replay — all **PASS** |
+| MCQ smoke | list, create, edit, preview, incorrect then correct attempt, delete cancel/confirm, second-teacher isolation — all **PASS** |
+
+The production MCQ smoke file was a one-off against workers.dev and was **not** kept in the repo.
+`playwright.mcq.config.ts` still refuses `workers.dev`. Sprint 1 auth/session behavior was not changed.
 
 ---
 
@@ -1353,10 +1402,11 @@ was not rendered.
 ## Current Status
 
 **Last Updated:** 2026-09-04
-**Current Phase:** Phase 5 — Playwright / E2E
-**Status:** COMPLETED  
-**Next Steps:** Wait for explicit approval before Phase 6 (final review).
+**Current Phase:** Phase 6 — Production release
+**Status:** COMPLETED
+**Next Steps:** None. Sprint 2 Phase 6 is done.
 
-Phase 5 is done. MCQ E2E runs against local preview + local D1 only
-(`npm run e2e:mcq`). Production `workers.dev` was not used for MCQ tests.
-No remote migration, no deploy. Phase 6 has not started.
+Deployed at `https://aisprint-quizmaker.akshaykumar.workers.dev`
+(version `e1850fbd-069c-4f15-83dd-dee6ad70314e`). Remote D1 has the 0003 MCQ
+schema via targeted DDL. `d1_migrations` still has only Sprint 1
+`0001_create_users_table.sql`. No further phase started.
