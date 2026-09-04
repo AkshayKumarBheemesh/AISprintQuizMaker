@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import type { z } from "zod";
 
@@ -57,12 +57,18 @@ export function McqForm({
 		name: "choices",
 	});
 
-	const [correctValue, setCorrectValue] = useState(() => {
-		const index = (defaultValues?.choices ?? EMPTY_CHOICES).findIndex(
-			(choice) => choice.isCorrect,
-		);
-		return index >= 0 ? String(index) : "";
-	});
+	const watchedChoices = form.watch("choices");
+	const correctIndex = watchedChoices.findIndex((choice) => choice.isCorrect);
+	const correctValue = correctIndex >= 0 ? String(correctIndex) : "";
+
+	const markCorrect = (index: number) => {
+		watchedChoices.forEach((_, choiceIndex) => {
+			form.setValue(`choices.${choiceIndex}.isCorrect`, choiceIndex === index, {
+				shouldDirty: true,
+				shouldValidate: true,
+			});
+		});
+	};
 
 	const fieldError = (name: "name" | "question", server?: string[]) => {
 		const client = form.formState.errors[name]?.message;
@@ -131,18 +137,18 @@ export function McqForm({
 					<RadioGroup
 						value={correctValue}
 						onValueChange={(value) => {
-							setCorrectValue(value);
-							fields.forEach((_, index) => {
-								form.setValue(`choices.${index}.isCorrect`, index === Number(value), {
-									shouldDirty: true,
-									shouldValidate: true,
-								});
-							});
+							markCorrect(Number(value));
 						}}
 					>
 						{fields.map((field, index) => (
 							<Field key={field.id}>
 								<input type="hidden" {...form.register(`choices.${index}.id`)} />
+								<input
+									type="hidden"
+									{...form.register(`choices.${index}.isCorrect`, {
+										setValueAs: (value) => value === true || value === "true",
+									})}
+								/>
 								<FieldLabel htmlFor={`choices.${index}.choiceText`}>
 									Choice {index + 1}
 								</FieldLabel>

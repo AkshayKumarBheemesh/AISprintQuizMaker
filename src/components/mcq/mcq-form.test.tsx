@@ -85,6 +85,35 @@ describe("McqForm", () => {
 		expect(first).not.toBeChecked();
 	});
 
+	it("submits the newly selected correct choice in edit mode", async () => {
+		const user = userEvent.setup();
+		render(
+			<McqForm
+				mode="edit"
+				mcqId="mcq-1"
+				defaultValues={{
+					name: "Capitals",
+					question: "What is the capital of India?",
+					choices: [
+						{ id: "choice-1", choiceText: "NEW DELHI", isCorrect: false },
+						{ id: "choice-2", choiceText: "MUMBAI", isCorrect: false },
+						{ id: "choice-3", choiceText: "PUNE", isCorrect: true },
+					],
+				}}
+			/>,
+		);
+
+		await user.click(screen.getByRole("radio", { name: /choice 2 is correct/i }));
+		await user.click(screen.getByRole("button", { name: /save/i }));
+
+		await vi.waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+		const data = mockUpdate.mock.calls[0]?.[1] as FormData;
+		expect(data.get("choices.0.isCorrect")).toBe("false");
+		expect(data.get("choices.1.isCorrect")).toBe("true");
+		expect(data.get("choices.2.isCorrect")).toBe("false");
+		expect(data.get("choices.1.id")).toBe("choice-2");
+	});
+
 	it("loads existing values and preserves choice IDs in edit mode", async () => {
 		const user = userEvent.setup();
 		render(
